@@ -1,0 +1,244 @@
+We can use an instance of MongoClient to connect to a cluster, access the database in that cluster, and close the connection to that cluster.
+    //const {MongoClient} = require('mongodb');
+
+create main function:
+    //async function main() {
+	// we'll add code here soon
+//}
+
+create a constant for our connectionn URI
+/**
+ * Connection URI. Update <username>, <password>, and <your-cluster-url> to reflect your cluster.
+ * See https://docs.mongodb.com/ecosystem/drivers/node/ for more details
+ */
+const uri = "mongodb+srv://<username>:<password>@<your-cluster-url>/test?retryWrites=true&w=majority";
+
+we can create an instance of MongoClient
+//const client = new MongoClient(uri);
+
+ MongoClient to connect to our cluster. client.connect() will return a promise. 
+ We will use the await keyword when we call client.connect() to indicate that we should block further 
+ execution until that operation has completed.
+ //await client.connect();
+
+ now ready to interact. build a function that prints the names of the databases in this cluster.
+//await listDatabases(client);
+
+wrap function in a try/catch statement.
+    //try {
+        await client.connect();
+
+        await listDatabases(client);
+    
+    } catch (e) {
+        console.error(e);
+    }
+
+To end CONNECTION to cluster end try/catch with finally statement  
+    //finally {
+    await client.close();
+}
+
+CALL the main() function
+    //main().catch(console.error);
+
+completed:
+    async function main(){
+        /**
+        * Connection URI. Update <username>, <password>, and <your-cluster-url> to reflect your cluster.
+        * See https://docs.mongodb.com/ecosystem/drivers/node/ for more details
+        */
+        const uri = "mongodb+srv://<username>:<password>@<your-cluster-url>/test?retryWrites=true&w=majority";
+    
+
+        const client = new MongoClient(uri);
+    
+        try {
+            // Connect to the MongoDB cluster
+            await client.connect();
+    
+            // Make the appropriate DB calls
+            await  listDatabases(client);
+    
+        } catch (e) {
+            console.error(e);
+        } finally {
+            await client.close();
+        }
+    }
+
+    main().catch(console.error);
+
+
+NOW create listDatabases() function, retrieve a list of databases in our cluster and print the results to console.
+    //async function listDatabases(client){
+        databasesList = await client.db().admin().listDatabases();
+    
+        console.log("Databases:");
+        databasesList.databases.forEach(db => console.log(` - ${db.name}`));
+    };
+
+
+REST clients VS extensions installed: Thunder client and rest client
+
+RESTful applications use HTTP requests to perform four operations termed as CRUD 
+(C: create, R: read, U: update, and D: delete). Create and/or update is used to post data, 
+get for reading/listing data, and delete to remove data.
+
+Mongoose to interact with a MongoDB instance:
+    'use strict';
+    var mongoose = require('mongoose');
+    var Schema = mongoose.Schema;
+
+
+    var TaskSchema = new Schema({
+    name: {
+        type: String,
+        required: 'Kindly enter the name of the task'
+    },
+    Created_date: {
+        type: Date,
+        default: Date.now
+    },
+    status: {
+        type: [{
+        type: String,
+        enum: ['pending', 'ongoing', 'completed']
+        }],
+        default: ['pending']
+    }
+    });
+
+    module.exports = mongoose.model('Tasks', TaskSchema);
+
+
+
+HTTP GET method:
+
+query string sent in the URL of a GET request:
+    "/test/demo_form.php?name1=value1&name2=value2"
+
+The GET method is easily meddled with, thus is not safe since the information received is also saved 
+in the URL, meaning anyone else can have access to it.
+
+Setting up the routes: routing (determining how an application responds to a client request for a specific 
+endpoint, which is a URI (or path) and a specific HTTP request method).
+‘/tasks’ has to methods(‘GET’ and ‘POST’), while ‘/tasks/taskId’ has GET, PUT and DELETE.
+
+Controller so the routes can call it's own handler function (suggested to be set in todoListRoutes.js):
+    'use strict';
+    module.exports = function(app) {
+    var todoList = require('../controllers/todoListController');
+
+    // todoList Routes
+    app.route('/tasks')
+        .get(todoList.list_all_tasks)
+        .post(todoList.create_a_task);
+
+
+    app.route('/tasks/:taskId')
+        .get(todoList.read_a_task)
+        .put(todoList.update_a_task)
+        .delete(todoList.delete_a_task);
+    };
+
+Setting up the controller in the same file(still using Mongoose):
+   'use strict';
+    var mongoose = require('mongoose'),
+    Task = mongoose.model('Tasks');
+
+    exports.list_all_tasks = function(req, res) {
+    Task.find({}, function(err, task) {
+        if (err)
+        res.send(err);
+        res.json(task);
+    });
+    };
+
+    exports.create_a_task = function(req, res) {
+    var new_task = new Task(req.body);
+    new_task.save(function(err, task) {
+        if (err)
+        res.send(err);
+        res.json(task);
+    });
+    };
+
+    exports.read_a_task = function(req, res) {
+    Task.findById(req.params.taskId, function(err, task) {
+        if (err)
+        res.send(err);
+        res.json(task);
+    });
+    };
+
+    exports.update_a_task = function(req, res) {
+    Task.findOneAndUpdate({_id: req.params.taskId}, req.body, {new: true}, function(err, task) {
+        if (err)
+        res.send(err);
+        res.json(task);
+    });
+    };
+
+    exports.delete_a_task = function(req, res) {
+
+    Task.remove({
+        _id: req.params.taskId
+    }, function(err, task) {
+        if (err)
+        res.send(err);
+        res.json({ message: 'Task successfully deleted' });
+    });
+    }; 
+
+Connecting handlers(controllers), database, the created models, body parser and the created routes together.
+In server.js file:
+1. Connect your database by adding a url to the mongoose instance connection
+2. Load the created model - task
+3. Install bodyParser and use
+bodyParser Parse incoming request bodies in a middleware before your handlers, available under the req.body property.
+It exposes various factories to create middlewares. All middlewares will populate the req.bodyproperty with the parsed body, or an empty object ({}) if there was no body to parse (or an error was returned).
+4. Register our created routes in the server:
+
+
+    var express = require('express'),
+    app = express(),
+    port = process.env.PORT || 3000,
+    mongoose = require('mongoose'),
+    Task = require('./api/models/todoListModel'), //created model loading here
+    bodyParser = require('body-parser');
+    
+    // mongoose instance connection url connection
+    mongoose.Promise = global.Promise;
+    mongoose.connect('mongodb://localhost/Tododb'); 
+
+    app.use(bodyParser.urlencoded({ extended: true }));
+    app.use(bodyParser.json());
+
+    var routes = require('./api/routes/todoListRoutes'); //importing route
+    routes(app); //register the route
+
+    app.listen(port);
+
+    console.log('todo list RESTful API server started on: ' + port);
+
+You can now run Mongod to start the server then node server could connect to the MongoDB instance 
+(Open your terminal and run mongod). 
+restart your node server by running: (rs) on your nodemon running terminal.
+TEST URL at: http://localhost:3000/tasks
+
+API Query parameters can be defined as the optional key-value pairs that appear after the question mark in 
+the URL. Basically, they are extensions of the URL that are utilized to help determine specific content or 
+action based on the data being delivered. Query parameters are appended to the end of the URL, using a ‘?’.
+ The question mark sign is used to separate path and query parameters.
+
+use '&' inbetween for multiple query parameters
+
+In this URL, there are two query parameters, sort, and page, with ASC and 2 being their values, 
+respectively:
+    https://example.com/articles?sort=ASC&page=2
+
+    
+
+
+
